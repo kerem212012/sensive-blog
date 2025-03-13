@@ -1,5 +1,6 @@
 from django.db.models import Count
 from django.shortcuts import render
+
 from blog.models import Comment, Post, Tag
 
 
@@ -20,30 +21,41 @@ def serialize_post(post):
         'first_tag_title': post.tags.all()[0].title,
     }
 
+
 def serialize_post_optimized(post):
     return {
         'title': post.title,
         'teaser_text': post.text[:200],
         'author': post.author.username,
-        'comments_amount': len(Comment.objects.filter(post=post)),
+        'comments_amount': post.comments__count,
         'image_url': post.image.url if post.image else None,
         'published_at': post.published_at,
         'slug': post.slug,
         'tags': [serialize_tag(tag) for tag in post.tags.all()],
         'first_tag_title': post.tags.all()[0].title,
     }
+
+
 def serialize_tag(tag):
     return {
         'title': tag.title,
         'posts_with_tag': len(Post.objects.filter(tags=tag)),
     }
+def get_related_post_count(tag):
+    return tag.posts.count()
+
 def get_likes_count(post):
     return post.count_likes
 
-def index(request):
-    most_popular_posts =  Post.objects.prefetch_related("author").annotate(count_likes=Count('likes')).order_by("-count_likes")[:5] # TODO. Как это посчитать?
 
-    fresh_posts = Post.objects.prefetch_related("author").order_by('published_at')
+def index(request):
+    most_popular_posts = Post.objects.prefetch_related("author").annotate(Count('comments', distinct=True),
+                                                                          count_likes=Count('likes',
+                                                                                            distinct=True)).order_by(
+        "-count_likes")[:5]  # TODO. Как это посчитать?
+
+    fresh_posts = Post.objects.prefetch_related("author").annotate(Count('comments', distinct=True)).order_by(
+        'published_at')
     most_fresh_posts = list(fresh_posts)[-5:]
     popular_tags = Tag.objects.annotate(count_posts=Count("posts")).order_by("-count_posts")
     most_popular_tags = popular_tags[:5]
