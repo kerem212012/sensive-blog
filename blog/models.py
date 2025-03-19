@@ -9,6 +9,22 @@ class PostQuerySet(models.QuerySet):
     def year(self, year):
         return self.filter(published_at__year=year).order_by('published_at')
 
+    def popular(self):
+        return self.annotate(Count('likes')).order_by('-likes__count')
+
+    def fetch_with_comments_count(self):
+        most_popular_posts = self.popular()
+        most_popular_posts_ids = [post.id for post in most_popular_posts]
+
+        posts_with_comments = Post.objects.filter(id__in=most_popular_posts_ids).annotate(
+            Count('comments')).values_list(
+            'id', 'comments__count')
+        count_for_id = dict(posts_with_comments)
+
+        for post in most_popular_posts:
+            post.comments__count = count_for_id[post.id]
+        return most_popular_posts
+
 
 class Post(models.Model):
     title = models.CharField('Заголовок', max_length=200)
